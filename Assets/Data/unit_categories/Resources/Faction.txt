@@ -1,0 +1,12 @@
+{
+    "Faction": [ 
+		{
+			"name": "Church",
+			"description": "Messiah people",
+		},
+		{
+			"name": "Bandits",
+			"description": "Do not follow the rules",
+		},
+    ]
+}

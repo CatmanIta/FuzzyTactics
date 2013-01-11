@@ -1,0 +1,316 @@
+"""
+    Fuzzy logic module
+    
+    Version 1.3 - Takes note of the more 'guilty' input in determining the output
+    Version 1.2 - Defuzzification choices
+    Version 1.1 - Always uses an array for input variables, so that they can be dereferenced
+    Version 1.0
+    Copyright 2012  Michele Pirovano
+"""
+
+import numpy as np
+import string
+#import matplotlib.pyplot as plt   Won't work :(
+
+import sys, os
+rootPath = os.path.join(os.path.dirname(__file__), '..')
+sys.path.append(rootPath)
+
+from Utilities import *
+
+
+# This is a fuzzy variable, to be fuzzified
+class Variable():
+    def __init__(self,name,min,max):
+        self.name = name
+        self.min = min
+        self.max = max
+        
+        self.mfs = {}
+
+    def setName(self,name):
+        self.name = name
+        
+    # Set always as an array, so that it can be referenced
+    def setValue(self,valRef):
+        self.valRef = valRef
+        
+    def getValue(self):
+        # TODO: Actually returns a reference to the value!!! This should be getValueRef and getValue should just return the value!
+        return self.valRef;
+    
+    def getValueTEMP(self):
+        return self.valRef[0]
+        
+    def getNormalizedValue(self):
+        """ Returns the value of this variable normalized inside its range. """
+        return self.valRef[0] / (self.max-self.min)
+        
+    # Automatically add membership functions
+    # in order to cover the whole range
+    def setMFs(self,labels,origins,slopes):
+        #print("Variable " + self.name)
+        for i in range(len(labels)):
+            #print("New MF:",labels[i],origins[i],slopes[i])
+            self.addMF(labels[i],origins[i],slopes[i])
+            
+        
+    # Fuzzy Membership Function
+    # Trapezoid for now
+    def addMF(self,label,
+        origin,             # Point of origin between the MF's min and max
+        steepness = 2.0,    # Steepness of the granule
+        width = 0.0):
+        
+        mf = MembershipFunction(label,origin,steepness,width,self.min,self.max)
+        
+        self.mfs[label] = mf
+        
+    def fuzzyVal(self,label):
+        """ Return the fuzzy value of this variable according to one of its chosen labels """
+        #return self.mfs[label].y[self.val]
+        #print("Fuzzifying " + self.name + " " + label + " at val " + str(self.valRef[0]))
+        #print(self.mfs[label].x)
+        #print(self.mfs[label].y)
+        assert(label in self.mfs.keys())
+        res = interp(self.mfs[label].x, self.mfs[label].y, self.valRef[0])
+        return res
+    
+    # Return the linguistic representation of the variable
+    # As the label with the maximum correspondence
+    def linguistic(self):
+        max = 0;
+        resLabel = "";
+        for lab,mf in self.mfs.iteritems():
+            val = self.fuzzyVal(lab)
+            if val > max:
+                max = val
+                resLabel = lab
+        
+        return resLabel
+        
+        
+    def setVerbose(self):
+        taskMgr.doMethodLater(1.0,self.printStatusTask,self.name+"Verbose")
+        
+    def printStatusTask(self,task):
+        print(self.name + ": " + str(self.valRef[0]))
+        #print("Input " + rule.varsIn[i].name + " has value " + str(rule.varsIn[i].valRef[0]) + " and thus is " + rule.labsIn[i] + " at " + str(val))   
+        return task.again
+        
+        
+class InputVariable(Variable):
+    def __init__(self):
+        pass
+        
+class OutputVariable(Variable):
+    def __init__(self):
+        pass        
+        
+        
+        
+class MembershipFunction():
+    resolution = 0.1
+
+    def __init__(self,label,origin,steep,width,varMin,varMax):
+        
+        self.origin = origin        # Saved for output purposes
+        self.label = label
+        self.x = []
+        #self.y = {}
+        self.y = []
+        ran = int((varMax-varMin)/MembershipFunction.resolution) + 1
+        for i in range(ran):
+            x = varMin + i*MembershipFunction.resolution
+            if (x < origin):
+                y = steep*x + (1-steep*origin)  + width/2;
+            else:
+                y = (-steep*x) + (1+steep*origin)  + width/2;
+            
+            if (y < 0): y = 0;
+            if (y > 1): y = 1;
+            
+            self.x.append(x)
+            #self.y[x] = y
+            self.y.append(y)
+   
+        #print(label)
+        #print(self.x)
+        #print(self.y)
+        
+        
+
+        
+        
+class Rule():
+    
+    # For now, works with a single output value and label
+    def __init__(self,weight,varsIn,labsIn,varOut,labOut):
+        self.weight = weight
+        self.varsIn = varsIn
+        self.labsIn = labsIn
+        self.varOut = varOut
+        self.labOut = labOut
+ 
+        self.result = 0
+                 
+         
+
+class FuzzyficationMethod:
+    WEIGHTED = 0
+    MAX = 1
+    MIN = 2    
+
+class DefuzzyficationMethod:
+    WEIGHTED = 0
+    MAX = 1
+    MIN = 2
+    
+class System():
+        
+    def __init__(self):
+    
+        self.verbose = False
+        
+        self.vars = {}
+        self.rules = []
+        
+        self.defuzzMethod = DefuzzyficationMethod.MAX
+        self.fuzzMethod = FuzzyficationMethod.MIN   #TODO:
+        
+    def addVariable(self,var):
+        self.vars[var.name] = var
+        
+    def addRule(self,rule):
+        self.rules.append(rule)
+        
+    def checkRules(self):
+        if len(self.rules) == 0:
+            return
+    
+        if(self.verbose): print("\n\nStart rule checking...")
+    
+        # Mamdani approach
+        for rule in self.rules:
+            fuzzyVals = [] 
+            
+            if(self.verbose): print("Checking rule " + str(rule))
+            
+            # Input matching
+            for i in range(len(rule.varsIn)):
+                val = rule.varsIn[i].fuzzyVal(rule.labsIn[i])
+                fuzzyVals.append(val)
+                #print("InVal: " + str(rule.varsIn[i].valRef[0]))
+                if(self.verbose): print("Input " + rule.varsIn[i].name + " has value " + str(rule.varsIn[i].valRef[0]) + " and thus is " + rule.labsIn[i] + " at " + str(val))
+            
+            # Combination
+            combVal = min(fuzzyVals) # Get MIN
+            if(self.verbose): print("Combining with MIN: " + str(combVal))
+            
+            # Rule weight
+            combVal = min(combVal,rule.weight) # Get MIN
+            if(self.verbose): print("Weighting with MIN: " + str(combVal))
+            
+            # Save the output result
+            rule.result = combVal
+            
+            #print("rule: "+str(rule.result))
+    
+        if(self.verbose): print("Aggregating outputs:")
+    
+        # Output aggregation
+        outDict = {}
+        for rule in self.rules:
+            outKey = rule.varOut.name + "-" + rule.labOut
+            if (not(outKey in outDict)): 
+                outDict[outKey] = rule.result
+            else:
+                outDict[outKey] = max(outDict[outKey],rule.result) # Get MAX    
+            if self.verbose: print("Key " + outKey + " is " + str(outDict[outKey]))
+                            
+
+        if(self.verbose): print("Defuzzification:")        
+        # Defuzzyfication
+        # WRONG should divide different variables
+        # for now it works, but only for ONE output variable!
+        num = 0
+        den = 0
+        outName = ""
+        maxValue = 0
+        
+        for key,newValue in outDict.iteritems():
+            (varName, label) = string.split(key,'-')
+            #print(varName, label, newValue)
+            var = self.vars[varName]
+            
+            if(self.verbose): print("Output " + varName + "-" + label + " is " + str(newValue))
+            
+            if self.defuzzMethod == DefuzzyficationMethod.WEIGHTED:
+                # Weighted Media
+                num += var.mfs[label].origin*newValue 
+                den += newValue 
+            elif self.defuzzMethod == DefuzzyficationMethod.MAX:     
+                if newValue >= maxValue:     
+                    maxValue = max(newValue,maxValue)
+                    result = var.mfs[label].origin
+ 
+           
+            outName = varName # TEMPORARY
+        
+
+        if self.defuzzMethod == DefuzzyficationMethod.WEIGHTED: 
+            if (num == 0): result = 0
+            else: result = num/den
+
+        
+        if(self.verbose): print("Result = " + str(result))
+        
+        # Update variable
+        # ONLY FOR ONE OUTPUT VARIABLE FOR NOW!
+        self.vars[outName].valRef[0] = result
+        
+
+        #print("OutResult: "+str(result))
+        
+    def getMaxInput(self):
+        # Returns the input with the maximum value
+        # @see: Used for pause errors in MonitorHandler
+        maxVal = -100
+        maxInput = None
+        for rule in self.rules:
+            for i in range(len(rule.varsIn)):   
+                val = rule.varsIn[i].getValueTEMP()
+                #print("Var " + rule.varsIn[i].name + " has val " + str(val))
+                if val > maxVal:
+                    maxVal = val
+                    maxInput = rule.varsIn[i]
+        return maxInput
+
+if __name__ == "__main__":
+
+    # Test
+    vinArr = [0.5] # Input variable
+    vin = Variable("In",0,1)
+    vin.setMFs(['Small','Medium','Big'],[0,0.5,1])
+    vin.setValue(vinArr)
+
+    vinArr2 = [0.0] 
+    vin2 = Variable("In2",0,1)
+    vin2.setMFs(['Empty','Full'],[0,1])
+    vin2.setValue(vinArr2)
+
+    vout = Variable("Out",0,2)
+    vout.setMFs(['Min','Mid','Max'],[0,1,2])
+
+
+    sys = System()
+    sys.addVariable(vin)
+    sys.addVariable(vout)
+    sys.addRule(Rule(1,[vin,vin2],["Small","Empty"],vout,"Max"))
+    sys.checkRules()
+    
+    # Test change
+    vinArr[0] = 0.0
+    sys.checkRules()
+    
+    

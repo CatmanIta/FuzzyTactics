@@ -1,0 +1,14 @@
+<rules>
+	<rule>
+		<antecedent>
+			<variable>Health</variable>
+			<label>Low</label>
+			<variable>Morale</variable>
+			<label>Low</label>
+		</antecedent>
+		<consequent>
+			<variable>Fear</variable>
+			<label>High</label>
+		</consequent>
+	</rule>	
+</rules>

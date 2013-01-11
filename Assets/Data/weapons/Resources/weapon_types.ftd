@@ -1,0 +1,20 @@
+{
+    "weapon_types": [ 
+		{
+			"name": "spear",
+			"description": "Pointed ends"
+		},
+		{
+			"name": "sword",
+			"description": "Slicy"
+		},
+		{
+			"name": "bow",
+			"description": "Pew pew"
+		},
+		{
+			"name": "crossbow",
+			"description": "Cross pew"
+		},
+    ]
+}

@@ -1,0 +1,12 @@
+{
+    "Sex": [ 
+		{
+			"name": "Male",
+			"description": "Guy",
+		},
+		{
+			"name": "Female",
+			"description": "Gal",
+		},
+    ]
+}

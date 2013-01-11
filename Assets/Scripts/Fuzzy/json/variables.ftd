@@ -1,0 +1,59 @@
+{
+    "variables": [ 
+		{
+			"name": "Health",
+			"min": 0.0,
+			"max": 10.0,
+			"mfs": 
+				[
+				{ "label": "Low" , "origin":0.0, "slope":1.0, "width":1.0 }, 
+				{ "label": "Mid" , "origin":5.0, "slope":1.0, "width":1.0 }, 
+				{ "label": "High" , "origin":10.0, "slope":1.0, "width":1.0}
+				]
+		},
+		{
+			"name": "Distance",
+			"min": 0.0,
+			"max": 100.0,
+			"mfs": 
+				[
+				{ "label": "Low" , "origin":0.0, "slope":0.1, "width":2.0 }, 
+				{ "label": "Mid" , "origin":50.0, "slope":0.1, "width":2.0 }, 
+				{ "label": "High" , "origin":100.0, "slope":0.1, "width":2.0 }
+				]
+		}
+		{
+			"name": "Morale",
+			"min": 0.0,
+			"max": 100.0,
+			"mfs": 
+				[
+				{ "label": "Low" , "origin":0.0, "slope":1.0, "width":1.0 }, 
+				{ "label": "Mid" , "origin":50.0, "slope":1.0, "width":1.0 }, 
+				{ "label": "High" , "origin":100.0, "slope":1.0, "width":1.0 }
+				]
+		}
+		{
+			"name": "Fear",
+			"min": 0.0,
+			"max": 100.0,
+			"mfs": 
+				[
+				{ "label": "Low" , "origin":0.0, "slope":1.0, "width":1.0 }, 
+				{ "label": "Mid" , "origin":50.0, "slope":1.0, "width":1.0 }, 
+				{ "label": "High" , "origin":100.0, "slope":1.0, "width":1.0 }
+				]
+		}
+		{
+			"name": "Hunger",
+			"min": 0.0,
+			"max": 100.0,
+			"mfs": 
+				[
+				{ "label": "Low" , "origin":0.0, "slope":1.0, "width":1.0 }, 
+				{ "label": "Mid" , "origin":50.0, "slope":1.0, "width":1.0 }, 
+				{ "label": "High" , "origin":100.0, "slope":1.0, "width":1.0 }
+				]
+		}
+    ]
+}

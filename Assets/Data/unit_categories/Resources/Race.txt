@@ -1,0 +1,12 @@
+{
+    "Race": [ 
+		{
+			"name": "Human",
+			"description": "Standard folk",
+		},
+		{
+			"name": "Orc",
+			"description": "Brown skinned folks",
+		},
+    ]
+}

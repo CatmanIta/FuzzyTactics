@@ -1,0 +1,16 @@
+{
+    "weapons": [ 
+		{
+			"name": "Linen robe",
+			"description": "Soft",
+			"type": "robe",
+			"material": "cloth"
+		},
+		{
+			"name": "Plate mail",
+			"description": "A large plate mail",
+			"type": "armor",
+			"material": "plate"
+		},
+    ]
+}

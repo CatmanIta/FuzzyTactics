@@ -1,0 +1,24 @@
+{
+    "unit_categories": [ 
+		{
+			"name": "Class",
+			"description": "The job of a unit",
+		},
+		{
+			"name": "Race",
+			"description": "Units are born with different races",
+		},
+		{
+			"name": "Sex",
+			"description": "Mating direction",
+		},
+		{
+			"name": "Faction",
+			"description": "Allegiance of the unit",
+		},
+		{
+			"name": "Religion",
+			"description": "The faith of the unit lies in these creeds",
+		},
+    ]
+}

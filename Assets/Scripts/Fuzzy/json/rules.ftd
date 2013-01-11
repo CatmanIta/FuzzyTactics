@@ -1,0 +1,24 @@
+{
+    "rules": [
+		{
+			"name": "Fear trigger",
+			"weight": 1.0,
+			"antecedents": [
+				{
+					"variable": "Health",
+					"label": "Low"
+				},
+				{
+					"variable": "Morale",
+					"label": "Low"
+				}
+			],
+			"consequents": [
+				{
+					"variable": "Fear",
+					"label": "High"
+				}
+			]
+		}
+	]
+}

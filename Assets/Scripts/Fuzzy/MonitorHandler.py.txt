@@ -1,0 +1,557 @@
+"""
+    Monitoring functions
+    Explicit IA
+    
+    Version 1.4 - Node adaptation with references
+    Version 1.3 - Quest adaptation as Fuzzy input
+    Version 1.2 - Added different Fuzzy inputs
+    Version 1.1 - Added Fuzzy monitoring 
+    Version 1.0
+    Copyright 2012  Michele Pirovano
+"""
+from direct.showbase.ShowBase import ShowBase
+from panda3d.core import Vec3
+from direct.gui.OnscreenText import OnscreenText
+
+from GameObject import *
+
+
+#from Utilities import *
+from Logging import Timestamp
+
+from Feedback import FeedbackType
+
+
+import Fuzzy
+
+from Logging.Logger import AppEvent
+from Pause import PauseRequest
+
+# Enum
+class Severity():
+    NONE       = 0
+    LOG        = 1     # Just log the transpassing
+    WARNING    = 2     # Issue a warning
+    ERROR      = 3     # Issue an error
+    SHUTDOWN   = 4     # Close the application
+    
+    
+    
+# The information on a monitored value    
+class MonitoredValueInfo():
+    def __init__(self,name):
+        self.name = name
+        #self.min = min <-- Only for some cases
+        #self.max = max<-- Only for some cases
+        #self.severity = severity   <--- Now it is shared
+       
+       
+# A generic monitor for values 
+# each monitor has an array of values to be monitored
+# and a severity class and alarm status that are shared among the values 
+class Monitor():
+    id = 0 # Static id giver
+    
+    def __init__(self,name,arrayVal,severity):
+        self.name = name
+        self.arrayVal = arrayVal # Actual values to be monitored (must be an array address to be effective!)
+        self.monitoredValuesInfo = [] # Array containing info on monitored values
+        
+        for i,val in enumerate(arrayVal):
+            self.monitoredValuesInfo.append(MonitoredValueInfo(str(i)))
+            
+        self.severity = severity
+        self.alarm = False # True if an alarm has been raised
+        self.text = None
+        
+        # Unique ID
+        self.id = Monitor.id 
+        Monitor.id += 1
+    
+    # Abstract function for monitoring values
+    def monitorValues(self): 
+        pass
+        
+    def resetAlarm(self):
+        self.alarm = False
+        if (self.text != None): 
+            self.text.destroy()
+            self.text = None    
+        
+    
+
+
+        
+# A monitor that keeps values in a min-max range
+class MonitorMinMax(Monitor):
+    
+    def __init__(self,name,arrayVal,mins,maxes,severity):
+        Monitor.__init__(self,name,arrayVal,severity) 
+        
+        # Add min and max
+        for i,val in enumerate(self.monitoredValuesInfo):
+            val.min = mins[i]
+            val.max = maxes[i]
+            
+
+        
+    # TODO should not send alarms if an alarm has already been raised?
+    # When a monitored value is exceeding the minimum
+    def minExceeded(self,info):
+        self.alarm = True
+        if   (self.severity == Severity.LOG):       
+            print("Monitor " + self.name + " has value " + info.name + " below the minimum!")
+        elif (self.severity == Severity.WARNING):   
+            if (self.text == None): 
+                self.text = OnscreenText(text = 'Warning: The ' + self.name + "'s " + info.name +  ' is too low!!', fg = (1,0,0,1), pos = (-0.5, 0.1*self.id), scale = 0.07)
+        elif (self.severity == Severity.ERROR):     
+            if (self.text == None): 
+                self.text = OnscreenText(text = 'Error: The ' + self.name + "'s " + info.name + ' is too low!! Stopping!', pos = (-0.5, 0.1*self.id), scale = 0.07)
+        elif (self.severity == Severity.SHUTDOWN):  exit() # Just exit the app. This is done in EXTREME cases!
+    
+    # When a monitored value is exceeding the maximum
+    def maxExceeded(self,info):
+        self.alarm = True 
+        if   (self.severity == Severity.LOG):       
+            print("Monitor " + self.name + " has value " + info.name + " below the maximum!")
+        elif (self.severity == Severity.WARNING):   
+            if (self.text == None): 
+                self.text = OnscreenText(text = 'Warning: The ' + self.name + "'s " + info.name   +  ' is too high!!', fg = (1,0,0,1), pos = (-0.5, 0.1*self.id), scale = 0.07)
+        elif (self.severity == Severity.ERROR):     
+            if (self.text == None): 
+                self.text = OnscreenText(text = 'Error: The ' + self.name + "'s " + info.name  +  ' is too high!! Stopping!', pos = (-0.5, 0.1*self.id), scale = 0.07)
+        elif (self.severity == Severity.SHUTDOWN): 
+            exit() # Just exit the app. This is done in EXTREME cases!
+           
+    def monitorValues(self):
+        for i,val in enumerate(self.arrayVal):  # For each monitored value
+            info = monitoredValues[i]
+            if (val < info.min):
+                self.minExceeded(info)
+            elif (val > info.max):
+                self.maxExceeded(info)
+            elif (self.alarm):
+                self.resetAlarm()
+
+
+def getAxis(node,axis):
+    val = None
+    axisLetter = axis[:1]
+    if      (axisLetter == 'x'):      val = node.getX()
+    elif    (axisLetter == 'y'):      val = node.getY()
+    elif    (axisLetter == 'z'):      val = node.getZ()
+    elif    (axisLetter == 'h'):      val = node.getH()
+    elif    (axisLetter == 'p'):      val = node.getP()
+    elif    (axisLetter == 'r'):      val = node.getR()
+    #elif    axis == 'posMod':   val = node.getPos().length()
+    if axis[-3:] == "Abs":
+        val = abs(val)
+        #print("Using absolute value: " + str(val))
+    return val
+
+# Class that monitors a node path
+class NodeMonitorMinMax(MonitorMinMax):
+    def __init__(self,name,node,axesNames,mins,maxes,severity):
+        MonitorMinMax.__init__(self,name,[0]*len(axesNames),mins,maxes,severity) # Gives a dummy value, since we cannot access directly the axes of the nodepath
+        self.node = node
+        self.axes = []
+        
+        # TODO should do this in the parent somehow
+        for i,axisName in enumerate(axesNames):
+            self.axes.append(MonitoredValueInfo(axisName))
+            self.axes[i].min = mins[i]
+            self.axes[i].max = maxes[i]
+            
+          
+    def monitorValues(self):
+        for axis in self.axes:
+            val = getAxis(self.node,self.axis.name)
+
+            #print("Monitoring axis " + axis.name + " of node " + self.name + ": current " + str(val) + " min " + str(axis.min) + " max " + str(axis.max))
+
+            if (val < axis.min):
+                self.minExceeded(axis)
+            elif (val > axis.max):
+                self.maxExceeded(axis)
+            elif (self.alarm):
+                self.resetAlarm()
+
+
+
+# A monitor that is based on fuzzy logic                
+class FuzzyMonitor(Monitor):
+    # TODO: should consider severity!!!
+    # TODO: should use arrayVal in someway for consistency!!!
+    
+    def __init__(self,name,severity):
+        Monitor.__init__(self,name,[],severity)  # No monitored values, they are included in the fuzzy system
+         
+        self.reset()
+        
+        # Feedback of monitoring   
+        if base.appConfig.params["showSmileFeedback"]:
+            self.alarmSmile = base.feedback.request(FeedbackType.SMILEY)
+        if base.appConfig.params["showWarningFeedback"]:
+            self.warningSign = base.feedback.request(FeedbackType.WARNING)
+            self.warningSign.hide()
+        if (base.appConfig.params["showAlarmFeedback"]):
+            self.alarmFeedback = base.feedback.request(FeedbackType.ALARM)
+          
+        self.alarmTrace = [0]
+        
+        #taskMgr.doMethodLater(1,self.logMonitoringTask,"ShowMonitorTask")
+           
+  
+    # Can have many inputs
+    def addInput(self,name,valRef,vMin,vMax,labels,origins,slopes):
+        vin = Fuzzy.Variable(name,vMin,vMax)
+        vin.setMFs(labels,origins,slopes)
+        vin.setValue(valRef) # Set the reference for the variable to be monitored
+        self.inputs.append(vin)
+        self.fuzzySys.addVariable(vin) 
+        return vin
+        
+    #def addInputNodeHead(self,avatar,node,axis,min,max,labels,origins,slopes):         
+        
+    def registerVariableCallback(self,variable,function,extraArgs=[]):
+        """ 
+        Register a function to be linked to the dynamics of a variable.
+        
+        @param variable: The fuzzy variable to be monitored.
+        @type variable: Variable
+        
+        @param function: The function to call at each update which uses the value of the variable, normalized inside its range.
+        @type function: python function
+        """
+        task = Task(self.callFunctionTask)
+        args = [task,variable,function]
+        args.extend(extraArgs)
+        taskMgr.add(task,str(variable)+"Callback",extraArgs=args)
+    def callFunctionTask(self,*args):# self,task,variable,function):
+        task = args[0]
+        if self.paused: return task.cont
+        #print("Task: " + str(task))
+        variable = args[1]
+        #print("Var: " + str(variable))
+        function = args[2]
+        #print("Fun: " + str(function))
+        #print(args)
+        functionArgs = [variable.getNormalizedValue()]
+        functionArgs.extend(args[3:len(args)])
+        #print(functionArgs)
+        function(*functionArgs)
+        return task.cont
+
+    def addInputNodeRelativeAuto(self,name,targetNode,referenceNode,axis,maxValue, errorMessage = None):
+        return self.addInputNodeRelative(name,targetNode,referenceNode,axis,0,maxValue,["Fine","NotFine","Risky","Bad"],[0,maxValue/3.0,maxValue*2.0/3.0,maxValue],[3.0/maxValue,3.0/maxValue,3.0/maxValue,3.0/maxValue],errorMessage)
+    def addInputNodeRelative(self,name,targetNode,referenceNode,axis,vMin,vMax,labels,origins,slopes, errorMessage = None):
+        """ 
+        Monitors a nodepath, alongside a chosen axis, relative to a chosen target 
+        TODO: Match addInputNodeRelative and addInputNode
+        
+        @note referenceNode can be a constant container (example: [2.3])
+        """
+        #print("Adding input node " + name + " with node " + node)
+        val = getAxis(targetNode,axis)
+        self.nodes[name] = targetNode
+        self.nodeReferences[name] = referenceNode
+        self.nodeAxes[name] = axis
+        self.nodeVals[name] = [val]
+        if errorMessage: self.nodeErrorMessages[name] = errorMessage
+        vin = Fuzzy.Variable(name,vMin,vMax)
+        vin.setMFs(labels,origins,slopes)
+        vin.setValue(self.nodeVals[name]) # Set the reference for the variable to be monitored
+        self.inputs.append(vin)   
+        self.fuzzySys.addVariable(vin)  
+        task = Task(self.checkNodeTask)
+        taskMgr.add(self.checkNodeTask,"CheckNodeTask",extraArgs=[task,name])
+        return vin   
+    def addInputNodeAuto(self,name,node,axis,maxValue, errorMessage = None):
+        #print("Spread is " +str(3.0/maxValue))
+        #print("Max Value is " + str(maxValue))
+        #print("From Fine to NotFine is " + str(maxValue/3))
+        return self.addInputNode(name,node,axis,0,maxValue,["Fine","NotFine","Risky","Bad"],[0,maxValue/3.0,maxValue*2.0/3.0,maxValue],[3.0/maxValue,3.0/maxValue,3.0/maxValue,3.0/maxValue],errorMessage)
+    def addInputNode(self,name,node,axis,vMin,vMax,labels,origins,slopes, errorMessage = None):
+        """ 
+        Monitors a nodepath, alongside a chosen axis 
+        
+        @param errorMessage:    when this input gives rise to an error, use this message
+        @type errorMessage:    string
+        
+        """
+        #print("Adding input node " + name + " with node " + node)
+        val = getAxis(node,axis)
+        self.nodes[name] = node 
+        self.nodeAxes[name] = axis
+        self.nodeVals[name] = [val]        
+        if errorMessage: self.nodeErrorMessages[name] = errorMessage
+        vin = Fuzzy.Variable(name,vMin,vMax)
+        vin.setMFs(labels,origins,slopes)
+        vin.setValue(self.nodeVals[name]) # Set the reference for the variable to be monitored
+        self.inputs.append(vin)   
+        self.fuzzySys.addVariable(vin)  
+        task = Task(self.checkNodeTask)
+        taskMgr.add(self.checkNodeTask,"CheckNodeTask",extraArgs=[task,name])
+        return vin    
+    def checkNodeTask(self,task,name):
+        if name in self.nodeReferences:
+            self.nodeVals[name][0] = getAxis(self.nodes[name],self.nodeAxes[name]) - getAxis(self.nodeReferences[name],self.nodeAxes[name])
+            #print("Relative node has val " + str(self.nodeVals[name][0]))
+        else:
+            self.nodeVals[name][0] = getAxis(self.nodes[name],self.nodeAxes[name])
+        return task.cont
+   
+    def addInputTrace(self): 
+        """ 
+        Use alarm trace as input. 
+        The trace takes note of the frequency of the alarms 
+        TODO: BUG: The trace now cannot go down if we get at least a warning, since it will autofeed!!! 
+        For now, I just reset it after an error, since the purpose of the trace is to reach the error alarm after a few warnings
+        """  
+        vin = Fuzzy.Variable("AlarmTrace",0,10)
+        vin.setMFs(["Low","Mid","High"],[0,5,10],[0.2,0.2,0.2])
+        vin.setValue(self.alarmTrace)
+        self.inputs.append(vin)   
+        self.fuzzySys.addVariable(vin)  
+        taskMgr.add(self.alarmTraceTask,"AlarmTraceTask")
+        if (base.appConfig.showTrace):
+            self.trace = base.feedback.request(FeedbackType.TRACE)
+        return vin
+    def alarmTraceTask(self,task):
+        self.alarmTrace[0] += 1*globalClock.getDt()*(self.currentAlarmLevel - Severity.WARNING + 0.5)  # The trace grows with time only if the alarm level is at least Warning                      
+        self.alarmTrace[0] = clamp(self.alarmTrace[0],0,10)
+        if (base.appConfig.showTrace): self.trace.update(self.alarmTrace[0])
+        return task.cont
+
+    def addInputRamp(self):
+        self.ramp = [0]
+        vin = Fuzzy.Variable("InputRamp",0,20)
+        vin.setMFs(["Low","Mid","High"],[0,5,10],[0.2,0.2,0.2])
+        vin.setValue(self.ramp) # Set the reference for the variable to be monitored
+        self.inputs.append(vin)
+        self.fuzzySys.addVariable(vin) 
+        taskMgr.add(self.rampTask,"RampTask")
+        return vin
+    def rampTask(self,task):
+        self.ramp[0] += 1*globalClock.getDt()
+        #print(str(self.ramp[0]))
+        return task.cont
+
+    def addInputQuest(self, questAdapter):
+        vin = Fuzzy.Variable("QuestDelta",0,1)
+        vin.setMFs(["Low","Mid","High"],[0,0.5,1],[2,2,2])
+        vin.setValue(questAdapter.getDeltaReference()) # Set the reference for the variable to be monitored: the Quest delta
+        self.inputs.append(vin)
+        self.fuzzySys.addVariable(vin) 
+        return vin
+        
+    def setOutput(self,name,valRef,min,max,labels,origins,slopes):
+        self.vout = Fuzzy.Variable(name,min,max)
+        self.vout.setMFs(labels,origins,slopes)
+        self.vout.setValue(valRef) # Set the reference for the variable that will be updated
+        self.fuzzySys.addVariable(self.vout) 
+
+    def addRule(self,weight,inVars,inLabels,outLabel):
+        self.fuzzySys.addRule(Fuzzy.Rule(weight,inVars,inLabels,self.vout,outLabel))
+        
+    def monitorValues(self):
+        # First check the rules
+        self.fuzzySys.checkRules()
+        
+        # Then show warnings
+        self.checkAlarmLevel()
+        
+        # Update smile
+        if base.appConfig.params["showSmileFeedback"]:
+            self.alarmSmile.update(self.getOutputValueNormalized());
+            #print("Warning level: " + str(self.errorMonitor.getOutputValueNormalized()))
+           
+    def getOutputValue(self):
+        return self.vout.getValue()[0];
+        
+    def getOutputValueNormalized(self):
+        return self.vout.getValue()[0]/(self.vout.max-self.vout.min);
+        
+    def checkAlarmLevel(self):
+        if self.paused: return
+        self.currentAlarmLevel = self.getOutputValue()
+        currentAlarm = self.vout.linguistic()
+        alarmSound = base.appConfig.params["alarmSoundFeedback"]
+       
+        if (currentAlarm == "None"):
+            self.resetAlarm()
+            if (self.lastAlarm != "None"):
+                if alarmSound:
+                    if not(self.sfx == None): self.sfx.stop()
+                    self.sfx = None
+                if base.appConfig.params["showWarningFeedback"]:
+                    self.warningSign.hide()
+                
+        if (currentAlarm == "Log"):
+            if (self.lastAlarm != "Log"):
+                self.logAlarm(AppEvent.ALARM_LOG)
+                #print("Monitor: Log")
+                if alarmSound:
+                    if not(self.sfx == None): self.sfx.stop()
+                    self.sfx = None
+                if base.appConfig.params["showWarningFeedback"]:
+                    self.warningSign.hide()
+            
+        elif (currentAlarm == "Warning"):
+            if (self.text == None): 
+                pass #No text
+                #self.text = OnscreenText(text = 'Waning: you are doing too many errors.', pos = (-0.5, 0.1*self.id), scale = 0.07)
+            
+            if (self.lastAlarm != "Warning"):
+                self.logAlarm(AppEvent.ALARM_WARNING)
+                #print("Monitor: Warning")
+                
+                if alarmSound:
+                    if not(self.sfx == None): self.sfx.stop()
+                    self.sfx = loader.loadSfx(base.SOUNDS_PATH+"alarm_2.mp3")
+                    self.sfx.play()
+                if base.appConfig.params["showWarningFeedback"]:
+                    self.warningSign.show()
+        
+
+        elif (currentAlarm == "Error"):
+            if (self.text == None):
+                pass #No text
+                #self.text = OnscreenText(text = 'Error: YOU DID TOO MANY ERRORS!!!!!', pos = (-0.5, 0.1*self.id), scale = 0.07)
+                
+            if (self.lastAlarm != "Error"):
+                self.logAlarm(AppEvent.ALARM_ERROR)
+                #print("Monitor: Error")
+                
+                ##########################    
+                # Pause after an error
+                 
+                if alarmSound:
+                    if not(self.sfx == None): self.sfx.stop()
+                    #self.sfx = loader.loadSfx(base.SOUNDS_PATH+"alarm_1.wav")
+                    #self.sfx.play()
+                    
+                    # Stop the sfx after an error
+                    self.sfx.stop()
+                    
+                if base.appConfig.params["showWarningFeedback"]:
+                    self.warningSign.show()
+                    
+                   
+                # Reset trace after an error
+                #print("Resetting alarm trace")
+                self.alarmTrace[0] = 0
+                
+                errorMessage = "youAreMovingWrong"  # Default error message
+                
+                # New: we give a different error based on what went wrong
+                # @note: This is not really 'fuzzy', since we must give the message based on the input. As such we separate this from the Fuzzy behaviour
+                maxInput = self.fuzzySys.getMaxInput()
+                #print("Max input is " + maxInput.name)
+                if maxInput.name in self.nodeErrorMessages:
+                    errorMessage = self.nodeErrorMessages[maxInput.name]
+   
+                
+                # Then pause and the virtual therapist should appear!
+                base.pauseScreen.pause(PauseRequest.MONITOR,errorMessage)   
+                
+        
+                
+        elif (currentAlarm == "Shutdown"):
+            self.logAlarm(AppEvent.ALARM_SHUTDOWN)            
+            print("Monitor: SHUTDOWN")
+            pass#exit() # Just exit the app. This is done in EXTREME cases!
+        #print("Input: " + str(self.vin.getValue()[0]) + " Warning level: " + self.currentAlarmLevel)
+        self.lastAlarm = currentAlarm;
+
+        #print("Level: " + str(self.currentAlarmLevel) + " label: " + currentAlarm)
+
+        if (base.appConfig.params["showAlarmFeedback"]):
+            self.alarmFeedback.update(self.getOutputValueNormalized())
+            
+            
+    def logAlarm(self,alarm):
+        base.logger.log(alarm,params={"alarmLevel": self.currentAlarmLevel})
+        
+    def logMonitoringTask(self,task):
+        print("Inputs: ")
+        for vin in self.inputs: print(vin.name + " " + str(vin.valRef[0]))
+        print("Alarm level: " + self.lastAlarm)
+        return task.again
+        
+        
+    def superviseChange(self,difference,increasesDifficulty):
+        if (increasesDifficulty == True and self.currentAlarmLevel >= Severity.WARNING):
+            difference = 0; # No increase!
+            print("Supervised! We have a warning AND we are trying to increase difficulty")
+        elif (increasesDifficulty == True):
+            print("We don't block the adaptation, increasing difficulty without warnings : alarm level " + str(self.currentAlarmLevel))
+        elif (self.currentAlarmLevel >= Severity.WARNING):
+            print("We don't block the adaptation, alarm level is high " + str(self.currentAlarmLevel) + " but we are decreasing difficulty")
+        else: print("No warnings and decreasing difficulty")
+        return difference
+    
+    
+    def reset(self):
+        """ Restore the monitor to its starting state """
+        #TODO: Check that we are not leaving anything defined when destroying! For example, the TASKS!
+        
+        # Remove all tasks
+        #TODO: Use the new task handling that is in GameObject for this! Monitor should inherit from GameEntity!
+        taskMgr.remove("CheckNodeTask")
+
+        self.nodes = {}             # Nodepaths for axis monitoring
+        self.nodeReferences = {}    # Reference values to nodepath axes, for relative checks
+        self.nodeVals = {}          # Actual values of the nodes
+        self.nodeAxes = {}          # Axes of the nods
+        self.nodeErrorMessages = {} # Error messages tied to input nodes
+        
+        # Initialise the fuzzy system
+        # TODO place outside as a singleton for all fuzzy monitors
+        self.fuzzySys = Fuzzy.System()
+        #self.fuzzySys.verbose = True
+        
+        # Output is the alarm level
+        self.alarmLevel = [0.0]
+        self.setOutput("WarningLevel", self.alarmLevel, 0.0, 4.0, ["None","Log","Warning","Error","Shutdown"], [0,1,2,3,4], [1,1,1,1,1])
+        self.lastAlarm = "None"
+        self.currentAlarmLevel = 0
+        self.sfx = None
+        
+        self.inputs = []
+
+        self.paused = False # The monitor won't work if paused
+        
+        
+class MonitorHandler(GameEntity):
+    def __init__(self):
+        GameEntity.__init__(self,"Monitor Handler")
+        self.monitors = []
+      
+        dt = 0.2 # Time step
+        taskMgr.doMethodLater(dt,self.monitorValues,"Monitoring values")
+        
+    def monitorValues(self,task):
+        for index,monit in enumerate(self.monitors): # For each monitor
+            monit.monitorValues()
+        return task.again
+
+    # Register values for monitoring
+    def monitor(self,name,arrayVal,mins,maxes,severity = Severity.LOG):
+        self.monitors.append(MonitorMinMax(name,arrayVal,min,max,severity))
+    
+    # Register nodes for monitoring their axes
+    def monitorNode(self,name,nodepath,axesNames,mins,maxes,severity = Severity.LOG):
+        self.monitors.append(NodeMonitorMinMax(name,nodepath,axesNames,mins,maxes,severity))
+        
+    # Register a value for fuzzy monitoring
+    def fuzzyMonitor(self,name,severity = Severity.LOG):
+        newMon = FuzzyMonitor(name,severity)
+        self.monitors.append(newMon)
+        self.fuzzyMonitor = newMon # Should just have ONE fuzzy monitor for all variables!
+        return newMon
+       
+    def superviseChange(self,difference,increasesDifficulty):
+        return self.fuzzyMonitor.superviseChange(difference,increasesDifficulty)
+        
+    

@@ -1,0 +1,46 @@
+{
+    "stats": [ 
+		{
+			"name": "strength",
+			"description": "The physical strength of a unit"
+			"min": 0.0,
+			"max": 255.0,
+		},
+		{
+			"name": "dexterity",
+			"description": "The physical dexterity of a unit"
+			"min": 0.0,
+			"max": 255.0,
+		},
+		{
+			"name": "constitution",
+			"description": "The physical constitution of a unit"
+			"min": 0.0,
+			"max": 255.0,
+		},
+		{
+			"name": "intelligence",
+			"description": "The intelligence of a unit"
+			"min": 0.0,
+			"max": 255.0,
+		},
+		{
+			"name": "faith",
+			"description": "The faith power of a unit"
+			"min": 0.0,
+			"max": 255.0,
+		},
+		{
+			"name": "speed",
+			"description": "The physical speed of a unit"
+			"min": 0.0,
+			"max": 255.0,
+		},
+		{
+			"name": "jump",
+			"description": "The jump power of a unit"
+			"min": 0.0,
+			"max": 10.0,
+		},
+    ]
+}

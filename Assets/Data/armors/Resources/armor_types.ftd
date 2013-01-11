@@ -1,0 +1,12 @@
+{
+    "armor_types": [ 
+		{
+			"name": "cloth",
+			"description": "Fluffy"
+		},
+		{
+			"name": "leather",
+			"description": "Animal skin"
+		},
+    ]
+}

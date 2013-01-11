@@ -1,0 +1,18 @@
+{
+    "weapons": [ 
+		{
+			"name": "Wooden sword",
+			"description": "A sword made of... wood",
+			"type": "sword",
+			"material": "wood"
+			"strength": 1.0
+		},
+		{
+			"name": "Iron sword",
+			"description": "A sword made ofiron",
+			"type": "sword",
+			"material": "iron"
+			"strength": 3.0
+		},
+    ]
+}

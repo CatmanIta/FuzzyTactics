@@ -1,0 +1,12 @@
+{
+    "Religion": [ 
+		{
+			"name": "Atheist",
+			"description": "No god",
+		},
+		{
+			"name": "Messiah",
+			"description": "Believes",
+		},
+    ]
+}

@@ -1,0 +1,12 @@
+{
+    "Class": [ 
+		{
+			"name": "Warrior",
+			"description": "Likes swords",
+		},
+		{
+			"name": "Mage",
+			"description": "Likes magic",
+		},
+    ]
+}
